@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A147E22D1944FB1700B3D08B /* pbdsubsurface.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A147E22B1944FB1700B3D08B /* pbdsubsurface.cpp */; };
 		B130248E1236EE5100206AC7 /* fileutil.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B130248C1236EE5100206AC7 /* fileutil.cpp */; };
 		B13B5765161245F5008FFA44 /* targa.c in Sources */ = {isa = PBXBuildFile; fileRef = B13B5763161245F5008FFA44 /* targa.c */; };
 		B19397BB12083210008317C5 /* shinymetal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B19397B912083210008317C5 /* shinymetal.cpp */; };
@@ -168,6 +169,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A147E22B1944FB1700B3D08B /* pbdsubsurface.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = pbdsubsurface.cpp; path = integrators/pbdsubsurface.cpp; sourceTree = SOURCE_ROOT; };
+		A147E22C1944FB1700B3D08B /* pbdsubsurface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = pbdsubsurface.h; path = integrators/pbdsubsurface.h; sourceTree = SOURCE_ROOT; };
 		B130248C1236EE5100206AC7 /* fileutil.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = fileutil.cpp; sourceTree = "<group>"; };
 		B130248D1236EE5100206AC7 /* fileutil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fileutil.h; sourceTree = "<group>"; };
 		B13B5763161245F5008FFA44 /* targa.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = targa.c; sourceTree = "<group>"; };
@@ -627,6 +630,8 @@
 				B1D8EBF71170310E00A8A49E /* irradiancecache.h */,
 				B1D8EBF81170310E00A8A49E /* path.cpp */,
 				B1D8EBF91170310E00A8A49E /* path.h */,
+				A147E22B1944FB1700B3D08B /* pbdsubsurface.cpp */,
+				A147E22C1944FB1700B3D08B /* pbdsubsurface.h */,
 				B1D8EBFA1170310E00A8A49E /* photonmap.cpp */,
 				B1D8EBFB1170310E00A8A49E /* photonmap.h */,
 				B1D8EBFC1170310E00A8A49E /* single.cpp */,
@@ -877,6 +882,7 @@
 				B1D8EBB4117030F200A8A49E /* api.cpp in Sources */,
 				B1D8EBB5117030F200A8A49E /* camera.cpp in Sources */,
 				B1D8EBB6117030F200A8A49E /* diffgeom.cpp in Sources */,
+				A147E22D1944FB1700B3D08B /* pbdsubsurface.cpp in Sources */,
 				B1D8EBB7117030F200A8A49E /* dtrace.d in Sources */,
 				B1D8EBB8117030F200A8A49E /* error.cpp in Sources */,
 				B1D8EBB9117030F200A8A49E /* film.cpp in Sources */,
@@ -1011,7 +1017,7 @@
 				);
 				INSTALL_PATH = /usr/local/bin;
 				PRODUCT_NAME = pbrt;
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx10.8;
 			};
 			name = Debug;
 		};
@@ -1028,7 +1034,7 @@
 				);
 				INSTALL_PATH = /usr/local/bin;
 				PRODUCT_NAME = pbrt;
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx10.8;
 			};
 			name = Release;
 		};
@@ -1100,7 +1106,7 @@
 				);
 				INSTALL_PATH = /usr/local/bin;
 				PRODUCT_NAME = pbrt;
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx10.8;
 			};
 			name = dtrace;
 		};

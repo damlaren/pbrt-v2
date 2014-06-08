@@ -58,6 +58,7 @@
 #include "integrators/ambientocclusion.h"
 #include "integrators/diffuseprt.h"
 #include "integrators/dipolesubsurface.h"
+#include "integrators/pbdsubsurface.h"
 #include "integrators/directlighting.h"
 #include "integrators/emission.h"
 #include "integrators/glossyprt.h"
@@ -547,6 +548,8 @@ SurfaceIntegrator *MakeSurfaceIntegrator(const string &name,
         si = CreateIGISurfaceIntegrator(paramSet);
     else if (name == "dipolesubsurface")
         si = CreateDipoleSubsurfaceIntegrator(paramSet);
+    else if (name == "pbdsubsurface")
+        si = CreatePBDSubsurfaceIntegrator(paramSet);
     else if (name == "ambientocclusion")
         si = CreateAmbientOcclusionIntegrator(paramSet);
     else if (name == "useprobes")
