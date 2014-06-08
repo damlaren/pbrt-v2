@@ -19,6 +19,26 @@
 #include "floatfile.h"
 struct DiffusionReflectance;
 
+// Importance sampling HCJ-PBD 3.1
+
+// Deterministic random samples from HCJ-PBD 3.1
+float deterministic_uniform_sample(int i, int N) {
+  assert(i > 0 && N > 0 && i <= N);
+  float xi_i = (static_cast<float>(i) - 0.5f) / static_cast<float>(N);
+  assert(xi_i >= 0 && xi_i <= 1.0f);
+  return xi_i;
+}
+
+// Exponential sampling (TODO: log base 10? e? 2?) from HCJ-PBD 3.1
+float exponential_ti(int i, int N, float sigma_prime_t) {
+  assert(sigma_prime_t != 0);
+  float xi_i = deterministic_uniform_sample(i, N);
+  return -log(1 - xi_i) / sigma_prime_t;
+}
+float exponential_pdf(float ti, float sigma_prime_t) {
+  return sigma_prime_t * exp(-sigma_prime_t * ti);
+}
+
 // PBDSubsurfaceIntegrator Local Declarations
 struct SubsurfaceOctreeNode {
     // SubsurfaceOctreeNode Methods
