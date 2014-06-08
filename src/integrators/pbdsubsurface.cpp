@@ -56,13 +56,13 @@ float deterministic_uniform_sample(int i, int N) {
 }
 
 // Exponential sampling (TODO: log base 10? e? 2?) from HCJ-PBD 3.1
-float exponential_ti(int i, int N, float sigma_prime_t) {
+Spectrum exponential_ti(int i, int N, Spectrum sigma_prime_t) {
   assert(sigma_prime_t != 0);
   float xi_i = deterministic_uniform_sample(i, N);
-  return -log(1 - xi_i) / sigma_prime_t;
+  return -log(1 - xi_i) * (Spectrum(1.0f) / sigma_prime_t);
 }
-float exponential_pdf(float ti, float sigma_prime_t) {
-  return sigma_prime_t * exp(-sigma_prime_t * ti);
+Spectrum exponential_pdf(float ti, Spectrum sigma_prime_t) {
+  return sigma_prime_t * Exp(-sigma_prime_t * ti);
 }
 
 // PBDSubsurfaceIntegrator Local Declarations
