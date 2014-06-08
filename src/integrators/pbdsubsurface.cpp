@@ -1,10 +1,36 @@
-/*
-  Implementation of the PBDIntegrator.
 
-  TODO: right now this is just a straight copy of the DipoleSubsurfaceIntegrator
+/*
+ pbrt source code Copyright(c) 1998-2012 Matt Pharr and Greg Humphreys.
+ 
+ This file is part of pbrt.
+ 
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ 
+ - Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ 
+ - Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in the
+ documentation and/or other materials provided with the distribution.
+ 
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
  */
 
-// integrators/dipolesubsurface.cpp*
+
+// integrators/pbdsubsurface.cpp*
 #include "stdafx.h"
 #include "integrators/pbdsubsurface.h"
 #include "scene.h"
@@ -17,7 +43,7 @@
 #include "octree.h"
 #include "camera.h"
 #include "floatfile.h"
-struct DiffusionReflectance;
+struct PBDDiffusionReflectance;
 
 // Importance sampling HCJ-PBD 3.1
 
@@ -40,15 +66,15 @@ float exponential_pdf(float ti, float sigma_prime_t) {
 }
 
 // PBDSubsurfaceIntegrator Local Declarations
-struct SubsurfaceOctreeNode {
+struct PBDSubsurfaceOctreeNode {
     // SubsurfaceOctreeNode Methods
-    SubsurfaceOctreeNode() {
+    PBDSubsurfaceOctreeNode() {
         isLeaf = true;
         sumArea = 0.f;
         for (int i = 0; i < 8; ++i)
             ips[i] = NULL;
     }
-    void Insert(const BBox &nodeBound, IrradiancePoint *ip,
+    void Insert(const BBox &nodeBound, PBDIrradiancePoint *ip,
                 MemoryArena &arena) {
         Point pMid = .5f * nodeBound.pMin + .5f * nodeBound.pMax;
         if (isLeaf) {
@@ -59,21 +85,21 @@ struct SubsurfaceOctreeNode {
                     return;
                 }
             }
-
+            
             // Convert leaf node to interior node, redistribute points
             isLeaf = false;
-            IrradiancePoint *localIps[8];
+            PBDIrradiancePoint *localIps[8];
             for (int i = 0; i < 8; ++i) {
                 localIps[i] = ips[i];
                 children[i] = NULL;
             }
             for (int i = 0; i < 8; ++i)  {
-                IrradiancePoint *ip = localIps[i];
+                PBDIrradiancePoint *ip = localIps[i];
                 // Add _IrradiancePoint_ _ip_ to interior octree node
                 int child = (ip->p.x > pMid.x ? 4 : 0) +
-                    (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
+                (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
                 if (!children[child])
-                    children[child] = arena.Alloc<SubsurfaceOctreeNode>();
+                    children[child] = arena.Alloc<PBDSubsurfaceOctreeNode>();
                 BBox childBound = octreeChildBound(child, nodeBound, pMid);
                 children[child]->Insert(childBound, ip, arena);
             }
@@ -81,9 +107,9 @@ struct SubsurfaceOctreeNode {
         }
         // Add _IrradiancePoint_ _ip_ to interior octree node
         int child = (ip->p.x > pMid.x ? 4 : 0) +
-            (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
+        (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
         if (!children[child])
-            children[child] = arena.Alloc<SubsurfaceOctreeNode>();
+            children[child] = arena.Alloc<PBDSubsurfaceOctreeNode>();
         BBox childBound = octreeChildBound(child, nodeBound, pMid);
         children[child]->Insert(childBound, ip, arena);
     }
@@ -121,24 +147,24 @@ struct SubsurfaceOctreeNode {
             E /= nChildren;
         }
     }
-    Spectrum Mo(const BBox &nodeBound, const Point &p, const DiffusionReflectance &Rd,
+    Spectrum Mo(const BBox &nodeBound, const Point &p, const PBDDiffusionReflectance &Rd,
                 float maxError);
-
+    
     // SubsurfaceOctreeNode Public Data
     Point p;
     bool isLeaf;
     Spectrum E;
     float sumArea;
     union {
-        SubsurfaceOctreeNode *children[8];
-        IrradiancePoint *ips[8];
+        PBDSubsurfaceOctreeNode *children[8];
+        PBDIrradiancePoint *ips[8];
     };
 };
 
 
-struct DiffusionReflectance {
-    // DiffusionReflectance Public Methods
-    DiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
+struct PBDDiffusionReflectance {
+    // PBDDiffusionReflectance Public Methods
+    PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
                          float eta) {
         A = (1.f + Fdr(eta)) / (1.f - Fdr(eta));
         sigmap_t = sigma_a + sigmap_s;
@@ -151,13 +177,13 @@ struct DiffusionReflectance {
         Spectrum dpos = Sqrt(Spectrum(d2) + zpos * zpos);
         Spectrum dneg = Sqrt(Spectrum(d2) + zneg * zneg);
         Spectrum Rd = (alphap / (4.f * M_PI)) *
-            ((zpos * (dpos * sigma_tr + Spectrum(1.f)) *
-              Exp(-sigma_tr * dpos)) / (dpos * dpos * dpos) -
-             (zneg * (dneg * sigma_tr + Spectrum(1.f)) *
-              Exp(-sigma_tr * dneg)) / (dneg * dneg * dneg));
+        ((zpos * (dpos * sigma_tr + Spectrum(1.f)) *
+          Exp(-sigma_tr * dpos)) / (dpos * dpos * dpos) -
+         (zneg * (dneg * sigma_tr + Spectrum(1.f)) *
+          Exp(-sigma_tr * dneg)) / (dneg * dneg * dneg));
         return Rd.Clamp();
     }
-
+    
     // DiffusionReflectance Data
     Spectrum zpos, zneg, sigmap_t, sigma_tr, alphap;
     float A;
@@ -166,14 +192,14 @@ struct DiffusionReflectance {
 
 
 // PBDSubsurfaceIntegrator Method Definitions
-PBDSubsurfaceIntegrator::~PBDSubsurfaceIntegrator() {
+PBDSubsurfaceIntegrator::PBDSubsurfaceIntegrator() {
     delete[] lightSampleOffsets;
     delete[] bsdfSampleOffsets;
 }
 
 
 void PBDSubsurfaceIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
-        const Scene *scene) {
+                                             const Scene *scene) {
     // Allocate and request samples for sampling all lights
     uint32_t nLights = scene->lights.size();
     lightSampleOffsets = new LightSampleOffsets[nLights];
@@ -189,7 +215,7 @@ void PBDSubsurfaceIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
 
 
 void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
-        const Camera *camera, const Renderer *renderer) {
+                                         const Camera *camera, const Renderer *renderer) {
     if (scene->lights.size() == 0) return;
     vector<SurfacePoint> pts;
     // Get _SurfacePoint_s for translucent objects in scene
@@ -212,7 +238,7 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
         FindPoissonPointDistribution(pCamera, camera->shutterOpen,
                                      minSampleDist, scene, &pts);
     }
-
+    
     // Compute irradiance values at sample points
     RNG rng;
     MemoryArena arena;
@@ -237,7 +263,7 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
                 float lightPdf;
                 VisibilityTester visibility;
                 Spectrum Li = light->Sample_L(sp.p, sp.rayEpsilon,
-                    ls, camera->shutterOpen, &wi, &lightPdf, &visibility);
+                                              ls, camera->shutterOpen, &wi, &lightPdf, &visibility);
                 if (Dot(wi, sp.n) <= 0.) continue;
                 if (Li.IsBlack() || lightPdf == 0.f) continue;
                 Li *= visibility.Transmittance(scene, renderer, NULL, rng, arena);
@@ -246,16 +272,16 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
             }
             E += Elight / nSamples;
         }
-        irradiancePoints.push_back(IrradiancePoint(sp, E));
+        irradiancePoints.push_back(PBDIrradiancePoint(sp, E));
         PBRT_SUBSURFACE_COMPUTED_IRRADIANCE_AT_POINT(&sp, &E);
         arena.FreeAll();
         progress.Update();
     }
     progress.Done();
     PBRT_SUBSURFACE_FINISHED_COMPUTING_IRRADIANCE_VALUES();
-
+    
     // Create octree of clustered irradiance samples
-    octree = octreeArena.Alloc<SubsurfaceOctreeNode>();
+    octree = octreeArena.Alloc<PBDSubsurfaceOctreeNode>();
     for (uint32_t i = 0; i < irradiancePoints.size(); ++i)
         octreeBounds = Union(octreeBounds, irradiancePoints[i].p);
     for (uint32_t i = 0; i < irradiancePoints.size(); ++i)
@@ -265,13 +291,13 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
 
 
 Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *renderer,
-        const RayDifferential &ray, const Intersection &isect,
-        const Sample *sample, RNG &rng, MemoryArena &arena) const {
+                                     const RayDifferential &ray, const Intersection &isect,
+                                     const Sample *sample, RNG &rng, MemoryArena &arena) const {
     Spectrum L(0.);
     Vector wo = -ray.d;
     // Compute emitted light if ray hit an area light source
     L += isect.Le(wo);
-
+    
     // Evaluate BSDF at hit point
     BSDF *bsdf = isect.GetBSDF(ray, arena);
     const Point &p = bsdf->dgShading.p;
@@ -285,7 +311,7 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         if (!sigmap_t.IsBlack()) {
             // Use hierarchical integration to evaluate reflection from dipole model
             PBRT_SUBSURFACE_STARTED_OCTREE_LOOKUP(const_cast<Point *>(&p));
-            DiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta());
+            PBDDiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta());
             Spectrum Mo = octree->Mo(octreeBounds, p, Rd, maxError);
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
@@ -295,8 +321,8 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         }
     }
     L += UniformSampleAllLights(scene, renderer, arena, p, n,
-        wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
-        bsdfSampleOffsets);
+                                wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
+                                bsdfSampleOffsets);
     if (ray.depth < maxSpecularDepth) {
         // Trace rays for specular reflection and refraction
         L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene, sample,
@@ -308,16 +334,16 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
 }
 
 
-Spectrum SubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
-        const DiffusionReflectance &Rd, float maxError) {
+Spectrum PBDSubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
+                                     const PBDDiffusionReflectance &Rd, float maxError) {
     // Compute $M_\roman{o}$ at node if error is low enough
     float dw = sumArea / DistanceSquared(pt, p);
     if (dw < maxError && !nodeBound.Inside(pt))
     {
-        PBRT_SUBSURFACE_ADDED_INTERIOR_CONTRIBUTION(const_cast<SubsurfaceOctreeNode *>(this));
+        PBRT_SUBSURFACE_ADDED_INTERIOR_CONTRIBUTION(const_cast<PBDSubsurfaceOctreeNode *>(this));
         return Rd(DistanceSquared(pt, p)) * E * sumArea;
     }
-
+    
     // Otherwise compute $M_\roman{o}$ from points in leaf or recursively visit children
     Spectrum Mo = 0.f;
     if (isLeaf) {
@@ -339,7 +365,6 @@ Spectrum SubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
     }
     return Mo;
 }
-
 
 PBDSubsurfaceIntegrator *CreatePBDSubsurfaceIntegrator(const ParamSet &params) {
     int maxDepth = params.FindOneInt("maxdepth", 5);
