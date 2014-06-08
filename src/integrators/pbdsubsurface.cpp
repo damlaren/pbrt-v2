@@ -30,7 +30,7 @@
  */
 
 
-// integrators/dipolesubsurface.cpp*
+// integrators/pbdsubsurface.cpp*
 #include "stdafx.h"
 #include "integrators/pbdsubsurface.h"
 #include "scene.h"
@@ -210,7 +210,7 @@ struct PBDDiffusionReflectance {
 
 
 
-// DipoleSubsurfaceIntegrator Method Definitions
+// PBDSubsurfaceIntegrator Method Definitions
 PBDSubsurfaceIntegrator::PBDSubsurfaceIntegrator() {
     delete[] lightSampleOffsets;
     delete[] bsdfSampleOffsets;
