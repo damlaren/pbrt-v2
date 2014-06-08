@@ -43,7 +43,7 @@
 #include "octree.h"
 #include "camera.h"
 #include "floatfile.h"
-struct DiffusionReflectance;
+struct PBDDiffusionReflectance;
 
 // DipoleSubsurfaceIntegrator Local Declarations
 struct PBDSubsurfaceOctreeNode {
@@ -127,7 +127,7 @@ struct PBDSubsurfaceOctreeNode {
             E /= nChildren;
         }
     }
-    Spectrum Mo(const BBox &nodeBound, const Point &p, const DiffusionReflectance &Rd,
+    Spectrum Mo(const BBox &nodeBound, const Point &p, const PBDDiffusionReflectance &Rd,
                 float maxError);
     
     // SubsurfaceOctreeNode Public Data
@@ -142,9 +142,9 @@ struct PBDSubsurfaceOctreeNode {
 };
 
 
-struct DiffusionReflectance {
-    // DiffusionReflectance Public Methods
-    DiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
+struct PBDDiffusionReflectance {
+    // PBDDiffusionReflectance Public Methods
+    PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
                          float eta) {
         A = (1.f + Fdr(eta)) / (1.f - Fdr(eta));
         sigmap_t = sigma_a + sigmap_s;
@@ -291,7 +291,7 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         if (!sigmap_t.IsBlack()) {
             // Use hierarchical integration to evaluate reflection from dipole model
             PBRT_SUBSURFACE_STARTED_OCTREE_LOOKUP(const_cast<Point *>(&p));
-            DiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta());
+            PBDDiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta());
             Spectrum Mo = octree->Mo(octreeBounds, p, Rd, maxError);
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
@@ -315,7 +315,7 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
 
 
 Spectrum PBDSubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
-                                     const DiffusionReflectance &Rd, float maxError) {
+                                     const PBDDiffusionReflectance &Rd, float maxError) {
     // Compute $M_\roman{o}$ at node if error is low enough
     float dw = sumArea / DistanceSquared(pt, p);
     if (dw < maxError && !nodeBound.Inside(pt))
