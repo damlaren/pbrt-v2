@@ -45,6 +45,43 @@
 #include "floatfile.h"
 struct PBDDiffusionReflectance;
 
+inline float twoC1(float eta){
+    if (eta < 1)
+        return (0.919317 -
+                3.4793 * eta +
+                6.75335 * (eta * eta) -
+                7.80989 * (eta * eta * eta) +
+                4.98554 * (eta*eta*eta*eta) -
+                1.36881*(eta*eta*eta*eta*eta));
+    else
+        return (-9.23372 +
+                22.2272 * eta  -
+                29.9292 * eta * eta +
+                10.2291 * (eta*eta*eta) -
+                2.54396 * (eta*eta*eta*eta) +
+                0.254913 * (eta*eta*eta*eta*eta));
+}
+
+inline float threeC2(float eta){
+    if (eta < 1)
+        return (0.828421 -
+                2.62051 * eta +
+                3.36231 * (eta * eta) -
+                1.95284 * (eta * eta * eta) +
+                0.23649 * (eta*eta*eta*eta) -
+                0.145787* (eta*eta*eta*eta*eta));
+    else
+        return (-1641.1 +
+                135.926/(eta*eta*eta) -
+                656.175/(eta*eta) +
+                1376.53/eta +
+                1213.67*eta -
+                568.556 * (eta*eta) +
+                164.798*(eta*eta*eta) -
+                27.0181*(eta*eta*eta*eta) +
+                1.91826*(eta*eta*eta*eta*eta));
+}
+
 // DipoleSubsurfaceIntegrator Local Declarations
 struct PBDSubsurfaceOctreeNode {
     // SubsurfaceOctreeNode Methods
@@ -146,9 +183,10 @@ struct PBDDiffusionReflectance {
     // PBDDiffusionReflectance Public Methods
     PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
                          float eta) {
-        A = (1.f + Fdr(eta)) / (1.f - Fdr(eta));
+        A = (1.f + threeC2(eta))/(1.f - twoC1(eta));
         sigmap_t = sigma_a + sigmap_s;
-        sigma_tr = Sqrt(3.f * sigma_a * sigmap_t);
+        D_g = Spectrum(1.f)/(sigmap_t *3.f) + sigma_a/(3*sigmap_t*sigmap_t);
+        sigma_tr = Sqrt(sigma_a/D_g);
         alphap = sigmap_s / sigmap_t;
         zpos = Spectrum(1.f) / sigmap_t;
         zneg = -zpos * (1.f + (4.f/3.f) * A);
@@ -165,8 +203,9 @@ struct PBDDiffusionReflectance {
     }
     
     // DiffusionReflectance Data
-    Spectrum zpos, zneg, sigmap_t, sigma_tr, alphap;
+    Spectrum zpos, zneg, sigmap_t, sigma_tr, alphap, D_g;
     float A;
+
 };
 
 
