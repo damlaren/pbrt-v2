@@ -11,6 +11,8 @@
 class Wet {
  public:
 
+  RNG rng;
+
   static const float OILINESS = 1.0;   // rho_s, in [0, 1]
   static const float ROUGHNESS = 0.35; // skin roughness
 
@@ -28,5 +30,5 @@ class Wet {
   float G(const Vector& L, const Vector& H, const Vector& E, const Normal& N);
 
   // Integrate over a hemisphere as in [DJ2006], eq. 2
-  float integrate_frTS(const Point& x, const Vector& wo, const Normal& N, const float F);
+  float integrate_frTS(const Point& x, const Vector& wi, const Normal& N, const float F);
 };

@@ -36,9 +36,8 @@ float Wet::G(const Vector& L, const Vector& H, const Vector& E, const Normal& N)
 }
 
 // Monte-Carlo integration of frTS over a hemisphere
-float Wet::integrate_frTS(const Point& x, const Vector& wo, const Normal& N, const float F) {
-  RNG rng;
-  const int SQRT_SAMPLES = 10; // TODO: how many
+float Wet::integrate_frTS(const Point& x, const Vector& wi, const Normal& N, const float F) {
+  const int SQRT_SAMPLES = 10; // TODO: how many?
   const int N_SAMPLES = SQRT_SAMPLES * SQRT_SAMPLES;
   float *s1 = ALLOCA(float, 2 * N_SAMPLES);
   StratifiedSample2D(s1, SQRT_SAMPLES, SQRT_SAMPLES, rng);
@@ -55,11 +54,18 @@ float Wet::integrate_frTS(const Point& x, const Vector& wo, const Normal& N, con
   float rotAngle = Degrees(acosf(Dot(UNIT_Z, N)));
   Transform rotator = Rotate(rotAngle, rotVector);
 
+  // Do the MC sampling
   float rho_dr = 0.0f;
   for (int i = 0; i < N_SAMPLES; i++) {
-    Vector wi = UniformSampleHemisphere(s1[i], s2[i]);
-    rotator(wi, &wi);
-    rho_dr += frTS(x, wo, -wi, N, F);
+    Vector wo = UniformSampleHemisphere(s1[i], s2[i]);
+    rotator(wo, &wo);
+    rho_dr += frTS(x, wo, wi, N, F);
   }
-  return rho_dr / (UniformHemispherePdf() * N_SAMPLES);
+
+  // Take final result and clamp to range [0, 1]
+  float res = rho_dr / (UniformHemispherePdf() * N_SAMPLES);
+  if (res < 0) res = 0.0f;
+  if (res > 1) res = 1.0f;
+
+  return res;
 }
