@@ -45,12 +45,21 @@ float Wet::integrate_frTS(const Point& x, const Vector& wo, const Normal& N, con
   float *s2 = ALLOCA(float, 2 * N_SAMPLES);
   StratifiedSample2D(s2, SQRT_SAMPLES, SQRT_SAMPLES, rng);
 
+  // Sample wi's are generated about a hemisphere with axis
+  // (0, 0, 1). Find a rotation (angle and vector about which
+  // to rotate) that rotates the hemisphere to be about the
+  // passed normal. The angle for computing the transform in
+  // Rotate is assumed to be in degrees. (sigh)
+  const Vector UNIT_Z = Vector(0, 0, 1);
+  Vector rotVector = Normalize(Cross(UNIT_Z, N));
+  float rotAngle = Degrees(acosf(Dot(UNIT_Z, N)));
+  Transform rotator = Rotate(rotAngle, rotVector);
+
   float rho_dr = 0.0f;
   for (int i = 0; i < N_SAMPLES; i++) {
     Vector wi = UniformSampleHemisphere(s1[i], s2[i]);
-    //TODO rotate to account for the normal...
-
-    rho_dr += frTS(x, wo, wi, N, F);
+    rotator(wi, &wi);
+    rho_dr += frTS(x, wo, -wi, N, F);
   }
   return rho_dr / (UniformHemispherePdf() * N_SAMPLES);
 }
