@@ -201,8 +201,7 @@ struct PBDSubsurfaceOctreeNode {
 
 struct PBDDiffusionReflectance {
     // PBDDiffusionReflectance Public Methods
-    PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
-                         float eta) {
+    PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s, float eta, Vector wo ) {
         nSamples = 5; //TODO: Make input variable
         sigmap_t = sigma_a + sigmap_s;
         alphap = sigmap_s / sigmap_t;
@@ -219,15 +218,15 @@ struct PBDDiffusionReflectance {
         zv = zr + 4.f*A*D_g;
 
     }
-    Spectrum operator()(float d2) const {
+    Spectrum operator()(float sqd) const {
         Spectrum Rd(0.f);
         for (int i = 1; i <= nSamples; i++){
             Spectrum ti = exponential_ti(i,nSamples,sigmap_t);
             Spectrum pdf_ti = exponential_pdf(ti,sigmap_t);
             Spectrum Q = alphap * sigmap_t * Exp(-sigmap_t * ti);
             
-            Spectrum dr = Sqrt(Spectrum(d2*d2) + zr * zr);
-            Spectrum dv = Sqrt(Spectrum(d2*d2) + zv * zv);
+            Spectrum dr = Sqrt(Spectrum(sqd) + zr * zr);
+            Spectrum dv = Sqrt(Spectrum(sqd) + zv * zv);
             
             Spectrum Rd_phi = (Cphi*alphap*alphap)/(4.f*M_PI*D_g) * (Exp(-sigma_tr * dr)/dr - Exp(-sigma_tr * dv)/dv);
             Spectrum Rd_E = (C_e*alphap*alphap)/(4.f*M_PI) * (zr*(dr * sigma_tr + Spectrum(1.f))* Exp(-sigma_tr * dr)/(dr*dr*dr) -
@@ -270,9 +269,9 @@ void PBDSubsurfaceIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
     }
 }
 
-
 void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
-                                         const Camera *camera, const Renderer *renderer) {
+                                         const Camera *camera, 
+                                         const Renderer *renderer) {
     if (scene->lights.size() == 0) return;
     vector<SurfacePoint> pts;
     // Get _SurfacePoint_s for translucent objects in scene
@@ -368,7 +367,7 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         if (!sigmap_t.IsBlack()) {
             // Use hierarchical integration to evaluate reflection from dipole model
             PBRT_SUBSURFACE_STARTED_OCTREE_LOOKUP(const_cast<Point *>(&p));
-            PBDDiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta());
+            PBDDiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta(),wo);
             Spectrum Mo = octree->Mo(octreeBounds, p, Rd, maxError);
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
