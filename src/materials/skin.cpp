@@ -16,14 +16,14 @@ SkinMicrofacet::SkinMicrofacet(const Spectrum &reflectance, Fresnel *f, Microfac
 Spectrum SkinMicrofacet::f(const Vector &wo,
 			   const Vector &wi) const
 {
-  return oiliness * Microfacet::f(wo, wi);
+  return Microfacet::f(wo, wi);
 }
 
 Spectrum SkinMicrofacet::Sample_f(const Vector &wo, Vector *wi,
 				  float u1, float u2,
 				  float *pdf) const
 {
-  return oiliness * Microfacet::Sample_f(wo, wi, u1, u2, pdf);
+  return Microfacet::Sample_f(wo, wi, u1, u2, pdf);
 }
 
 float SkinMicrofacet::Pdf(const Vector &wo,
@@ -57,6 +57,8 @@ BSDF *SkinMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
     Spectrum R = Kr->Evaluate(dgs).Clamp();
     float e = eta->Evaluate(dgs);
 
+    // Add one microfacet distribution that ramps up with the "oily" look of the skin.
+    // Only this model is used to modulate subsurface scattering.
     if (!R.IsBlack()) {
       MicrofacetDistribution *md = BSDF_ALLOC(arena, Blinn)(10.0f);
       Fresnel *fr = BSDF_ALLOC(arena, FresnelDielectric)(1., e);

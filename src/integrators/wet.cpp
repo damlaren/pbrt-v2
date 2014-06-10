@@ -1,6 +1,9 @@
 #include "wet.h"
 #include "core/montecarlo.h"
 
+#include "core/paramset.h"
+#include "materials/skin.h"
+
 #include <iostream>
 
 // Monte-Carlo integration of a BRDF over a hemisphere, as in DJ2006.
@@ -8,22 +11,6 @@ Spectrum Wet::integrate_BRDF(BSDF *bsdf, const Vector& wi,
 			     int sqrtSamples, BxDFType brdfType) {
   int nSamples = sqrtSamples * sqrtSamples;
   
-  /*
-  float *s1 = ALLOCA(float, 2 * nSamples);
-  StratifiedSample2D(s1, sqrtSamples, sqrtSamples, rng);
-  float *s2 = ALLOCA(float, 2 * nSamples);
-  StratifiedSample2D(s2, sqrtSamples, sqrtSamples, rng);
-
-  // Do the MC sampling of BRDFs. wrong way?
-  Spectrum rho_dr = Spectrum(0.0f);
-  for (int i = 0; i < nSamples; i++) {
-    Vector wo = UniformSampleHemisphere(s1[i], s2[i]);
-    rho_dr += bsdf->f(wo, wi, brdfType) * CosTheta(wi);
-  }
-
-  rho_dr /= UniformHemispherePdf() * nSamples;
-  */
-
   Spectrum rho_dr = Spectrum(0.0f);
   for (int i = 0; i < nSamples; i++) {
     Vector w0;
@@ -43,5 +30,15 @@ Spectrum Wet::integrate_BRDF(BSDF *bsdf, const Vector& wi,
   if (!rho_dr.IsBlack()) {
     // rho_dr.Print(stderr); std::cout << std::endl;
   }
+
+  // HACK! Fetch oiliness from BSDF.
+  for (int i = 0; i < bsdf->NumComponents(); i++) {
+    BxDF* bxdf = bsdf->getComponent(i);
+    SkinMicrofacet *smf = dynamic_cast<SkinMicrofacet*>(bxdf);
+    if (smf) {
+      oiliness = smf->oiliness;
+    }
+  }
+  
   return rho_dr;
 }

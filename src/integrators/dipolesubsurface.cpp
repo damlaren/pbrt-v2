@@ -283,6 +283,8 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
     const Point &p = bsdf->dgShading.p;
     const Normal &n = bsdf->dgShading.nn;
 
+    Spectrum rho_dr = Spectrum(1.0f);
+
     // Evaluate BSSRDF and possibly compute subsurface scattering
     BSSRDF *bssrdf = isect.GetBSSRDF(ray, arena);
     if (bssrdf && octree) {	
@@ -298,24 +300,36 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
             float Fdt = 1.f - Fdr(bssrdf->eta());
 
+	    //TODO: rho_dr% is directly reflected (specular term)
+	    // And (1 - rho_dr)% is from scattering.
 	    // modulate SSS contribution by rho_dr
-            L += (INV_PI * Ft) * (Fdt * Mo);
-	    //Spectrum rho_dr = wet->integrate_BRDF(bsdf, ray.d, 10, BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
-	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(1.0f) - rho_dr);
+            //L += (INV_PI * Ft) * (Fdt * Mo);
+	    rho_dr = wet->integrate_BRDF(bsdf, ray.d, 10, BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
+	    rho_dr *= wet->oiliness; // DJ2006
+	    L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(1.0f) - rho_dr);
 	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(0.0f));
+
+	    //TODO: rho_dr fraction of the light is directly reflected-- add this
+	        L += UniformSampleAllLights(scene, renderer, arena, p, n,
+        wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
+        bsdfSampleOffsets);
 	    
             PBRT_SUBSURFACE_FINISHED_OCTREE_LOOKUP();
         }
     }
+
     L += UniformSampleAllLights(scene, renderer, arena, p, n,
         wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
         bsdfSampleOffsets);
+
     if (ray.depth < maxSpecularDepth) {
-        // Trace rays for specular reflection and refraction
-        L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene, sample,
-                             arena);
-        L += SpecularTransmit(ray, bsdf, rng, isect, renderer, scene, sample,
-                              arena);
+        // Trace rays for specular reflection and refraction.
+      // Specular reflection only occurs on oily skin.
+      //TODO: this has no effect?
+        L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene,
+			     sample, arena);
+        L += SpecularTransmit(ray, bsdf, rng, isect,
+			      renderer, scene, sample, arena);
     }
     return L;
 }

@@ -177,6 +177,12 @@ public:
     Spectrum rho(const Vector &wo, RNG &rng, BxDFType flags = BSDF_ALL,
                  int sqrtSamples = 6) const;
 
+    //HACK!
+    BxDF* getComponent(int i) {
+      assert (i < NumComponents());
+      return bxdfs[i];
+    }
+
     // BSDF Public Data
     const DifferentialGeometry dgShading;
     const float eta;

@@ -29,7 +29,6 @@ class SkinMicrofacet : public Microfacet {
 		    float u1, float u2, float *pdf) const;
   float Pdf(const Vector &wo, const Vector &wi) const;
 
- private:
   float oiliness; // Unctuousness. Must be between 0 and 1.
 };
 
