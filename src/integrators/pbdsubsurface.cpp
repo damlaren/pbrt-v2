@@ -45,9 +45,7 @@
 #include "floatfile.h"
 struct PBDDiffusionReflectance;
 
-// Importance sampling HCJ-PBD 3.1
-
-// Deterministic random samples from HCJ-PBD 3.1
+// Deterministic random sample
 float deterministic_uniform_sample(int i, int N) {
   assert(i > 0 && N > 0 && i <= N);
   float xi_i = (static_cast<float>(i) - 0.5f) / static_cast<float>(N);
@@ -55,14 +53,15 @@ float deterministic_uniform_sample(int i, int N) {
   return xi_i;
 }
 
-// Exponential sampling from HCJ-PBD 3.1
+// Exponential sampling
 Spectrum exponential_ti(int i, int N, Spectrum sigmap_t) {
   assert( sigmap_t != 0);
   float xi_i = deterministic_uniform_sample(i, N);
-  return -log(1 - xi_i) * (Spectrum(1.0f) / sigmap_t);
+  return (Spectrum(-log(1 - xi_i)) / sigmap_t);
 }
-Spectrum exponential_pdf(Spectrum ti, Spectrum sigma_prime_t) {
-  return sigma_prime_t * Exp(-sigma_prime_t * ti);
+
+Spectrum exponential_pdf(Spectrum ti, Spectrum sigmap_t) {
+  return (sigmap_t * Exp(-sigmap_t * ti));
 }
 
 inline float twoC1(float eta){
@@ -202,10 +201,14 @@ struct PBDSubsurfaceOctreeNode {
 struct PBDDiffusionReflectance {
     // PBDDiffusionReflectance Public Methods
     PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s, float eta, Vector wo ) {
-        nSamples = 5; //TODO: Make input variable
         sigmap_t = sigma_a + sigmap_s;
         alphap = sigmap_s / sigmap_t;
         
+        for (int i = 1; i <= nSamples; i++){
+            ti[i] = exponential_ti(i,nSamples,sigmap_t);
+            pdf_ti[i] = exponential_pdf(ti[i],sigmap_t);
+        }
+
         A = (1.f + threeC2(eta))/(1.f - twoC1(eta));
         Cphi = 0.25 * (1.f - twoC1(eta));
         Cphi_corrective = (1.f - twoC1(1/eta));
@@ -213,7 +216,6 @@ struct PBDDiffusionReflectance {
         D_g = (sigma_a + sigmap_t)/(3.f*sigmap_t*sigmap_t);
         
         sigma_tr = Sqrt(sigma_a/D_g);
-        
         zr = Spectrum(1.f) / sigmap_t;
         zv = zr + 4.f*A*D_g;
 
@@ -221,9 +223,8 @@ struct PBDDiffusionReflectance {
     Spectrum operator()(float sqd) const {
         Spectrum Rd(0.f);
         for (int i = 1; i <= nSamples; i++){
-            Spectrum ti = exponential_ti(i,nSamples,sigmap_t);
-            Spectrum pdf_ti = exponential_pdf(ti,sigmap_t);
-            Spectrum Q = alphap * sigmap_t * Exp(-sigmap_t * ti);
+            
+            Spectrum Q = alphap * sigmap_t * Exp(-sigmap_t * ti[i]);
             
             Spectrum dr = Sqrt(Spectrum(sqd) + zr * zr);
             Spectrum dv = Sqrt(Spectrum(sqd) + zv * zv);
@@ -232,15 +233,17 @@ struct PBDDiffusionReflectance {
             Spectrum Rd_E = (C_e*alphap*alphap)/(4.f*M_PI) * (zr*(dr * sigma_tr + Spectrum(1.f))* Exp(-sigma_tr * dr)/(dr*dr*dr) -
              (zv * (dv * sigma_tr + Spectrum(1.f)) * Exp(-sigma_tr * dv)/ (dv * dv * dv)));
             
-            Spectrum kappa = Spectrum(1.f) - Exp(-2.f * sigmap_t * (ti + dr));
-            Rd += (Rd_phi + Rd_E)* Q * kappa/pdf_ti;
+            Spectrum kappa = Spectrum(1.f);// - Exp(-2.f * sigmap_t * (ti[i] + dr));
+            Rd += (Rd_phi + Rd_E)* Q * kappa/pdf_ti[i];
         }
-        Rd /= Cphi_corrective;
+        Rd /= Cphi_corrective/nSamples;
         return Rd.Clamp();
     }
     
     // DiffusionReflectance Data
-    int nSamples;
+    static const int nSamples = 5; //TODO: MAKE INPUT VAR
+    Spectrum ti[nSamples];
+    Spectrum pdf_ti[nSamples];
     Spectrum zr, zv, sigmap_t, sigma_tr, alphap, D_g;
     float A, Cphi, Cphi_corrective, C_e;
 
@@ -377,8 +380,8 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         }
     }
     L += UniformSampleAllLights(scene, renderer, arena, p, n,
-                                wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
-                                bsdfSampleOffsets);
+            wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, 
+            lightSampleOffsets, bsdfSampleOffsets);
     if (ray.depth < maxSpecularDepth) {
         // Trace rays for specular reflection and refraction
         L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene, sample,
