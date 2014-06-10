@@ -7,6 +7,8 @@
 #include "texture.h"
 #include "paramset.h"
 
+#include <iostream>
+
 SkinMicrofacet::SkinMicrofacet(const Spectrum &reflectance, Fresnel *f, MicrofacetDistribution *d, float oil) : Microfacet(reflectance, f, d), oiliness(oil)
 {
 }
@@ -56,7 +58,7 @@ BSDF *SkinMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
     float e = eta->Evaluate(dgs);
 
     if (!R.IsBlack()) {
-      MicrofacetDistribution *md = BSDF_ALLOC(arena, Blinn)(100.0f);
+      MicrofacetDistribution *md = BSDF_ALLOC(arena, Blinn)(10.0f);
       Fresnel *fr = BSDF_ALLOC(arena, FresnelDielectric)(1., e);
       bsdf->Add(BSDF_ALLOC(arena, SkinMicrofacet)(R, fr, md, oiliness));
     }
@@ -85,7 +87,7 @@ SkinMaterial *CreateSkinMaterial(const Transform &xform,
     Reference<Texture<Spectrum> > sigma_a, sigma_prime_s;
     sigma_a = mp.GetSpectrumTexture("sigma_a", sa);
     sigma_prime_s = mp.GetSpectrumTexture("sigma_prime_s", sps);
-    Reference<Texture<float> > ior = mp.GetFloatTexture("index", 1.3f);
+    Reference<Texture<float> > ior = mp.GetFloatTexture("index", 1.44f);
     Reference<Texture<Spectrum> > Kr = mp.GetSpectrumTexture("Kr", Spectrum(1.f));
     Reference<Texture<float> > bumpMap = mp.GetFloatTextureOrNull("bumpmap");
     return new SkinMaterial(scale, Kr, sigma_a, sigma_prime_s, ior, bumpMap, oil);

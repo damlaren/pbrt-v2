@@ -39,6 +39,7 @@
 // integrators/dipolesubsurface.h*
 #include "pbrt.h"
 #include "integrator.h"
+#include "wet.h"
 #include "kdtree.h"
 #include "renderers/surfacepoints.h"
 struct SubsurfaceOctreeNode;
@@ -68,6 +69,8 @@ public:
         minSampleDist = mindist;
         filename = fn;
         octree = NULL;
+
+	wet = new Wet();
     }
     ~DipoleSubsurfaceIntegrator();
     Spectrum Li(const Scene *scene, const Renderer *renderer,
@@ -88,6 +91,9 @@ private:
     // Declare sample parameters for light source sampling
     LightSampleOffsets *lightSampleOffsets;
     BSDFSampleOffsets *bsdfSampleOffsets;
+
+    // Oiliness
+    Wet *wet;
 };
 
 

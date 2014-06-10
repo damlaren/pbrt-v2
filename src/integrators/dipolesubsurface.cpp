@@ -282,9 +282,10 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
     BSDF *bsdf = isect.GetBSDF(ray, arena);
     const Point &p = bsdf->dgShading.p;
     const Normal &n = bsdf->dgShading.nn;
+
     // Evaluate BSSRDF and possibly compute subsurface scattering
     BSSRDF *bssrdf = isect.GetBSSRDF(ray, arena);
-    if (bssrdf && octree) {
+    if (bssrdf && octree) {	
         Spectrum sigma_a  = bssrdf->sigma_a();
         Spectrum sigmap_s = bssrdf->sigma_prime_s();
         Spectrum sigmap_t = sigmap_s + sigma_a;
@@ -296,7 +297,13 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
             float Fdt = 1.f - Fdr(bssrdf->eta());
+
+	    // modulate SSS contribution by rho_dr
             L += (INV_PI * Ft) * (Fdt * Mo);
+	    //Spectrum rho_dr = wet->integrate_BRDF(bsdf, ray.d, 10, BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
+	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(1.0f) - rho_dr);
+	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(0.0f));
+	    
             PBRT_SUBSURFACE_FINISHED_OCTREE_LOOKUP();
         }
     }

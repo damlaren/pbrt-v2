@@ -5,30 +5,19 @@
   * "A Reflectance Model for Computer Graphics" [CT82]
  */
 
+#include "core/reflection.h"
 #include "integrator.h"
 #include "pbrt.h"
+
+class BSDF;
 
 class Wet {
  public:
 
   RNG rng;
 
-  static const float OILINESS;   // rho_s, in [0, 1]
-  static const float ROUGHNESS; // skin roughness
-
-  // TODO: floats or Spectrums?
-  // DJ2006 eq. 1, except that dot(wi, n) on bottom is left out.
-  float frTS(const Point& x, const Vector& wo, const Vector& wi, const Normal& N, const float F);
-
-  // Fresnel reflectance [TODO?]
-  Spectrum F(const Point& x, const Vector& wo, const Vector& wi);
-
-  // Beckmann microfacet Distribution [CT82]
-  float D(const Normal& N, const Vector& H, const float m);
-
-  // Geometry term [CT82]
-  float G(const Vector& L, const Vector& H, const Vector& E, const Normal& N);
-
-  // Integrate over a hemisphere as in [DJ2006], eq. 2
-  float integrate_frTS(const Point& x, const Vector& wi, const Normal& N, const float F);
+  // Integrate a BRDF over a hemisphere as in [DJ2006], eq. 2.
+  // This is different from the rho calculations 
+  Spectrum integrate_BRDF(BSDF *bsdf, const Vector& wi,
+			  int sqrtSamples, BxDFType bxdfType);
 };
