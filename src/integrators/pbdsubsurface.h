@@ -1,8 +1,3 @@
-
-/*ED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
- */
-
 #if defined(_MSC_VER)
 #pragma once
 #endif
