@@ -2,8 +2,8 @@
 #pragma once
 #endif
 
-#ifndef PBRT_MATERIALS_SKIN_H
-#define PBRT_MATERIALS_SKIN_H
+#ifndef PBRT_MATERIALS_SKIN_SUBSURFACE_H
+#define PBRT_MATERIALS_SKIN_SUBSURFACE_H
 
 // materials/skin.h*
 #include "pbrt.h"
@@ -11,11 +11,11 @@
 #include "spectrum.h"
 #include "textures/constant.h"
 
-// SkinMaterial Declarations
-class SkinMaterial : public Material {
+// SkinSubsurfaceMaterial Declarations
+class SkinSubsurfaceMaterial : public Material {
 public:
-    // SkinMaterial Public Methods
-    SkinMaterial( float C_h, float C_m, float beta, float rho, 
+    // SkinSubsurfaceMaterial Public Methods
+    SkinSubsurfaceMaterial( float C_h, float C_m, float beta, float rho, 
                 Reference<Texture<float> > e, 
                 Reference<Texture<float> > bump);
     BSDF *GetBSDF(const DifferentialGeometry &dgGeom,
@@ -27,9 +27,9 @@ public:
 private:
     Reference<Texture<Spectrum> > episigma_a, episigmap_s;
     Spectrum rho_s;
-    Reference<Texture<float>> eta, bumpMap;
+    Reference<Texture<float> > eta, bumpMap;
 };
 
-SkinMaterial *CreateSkinMaterial(const Transform &xform, const TextureParams &mp);
+SkinSubsurfaceMaterial *CreateSkinSubsurfaceMaterial(const Transform &xform, const TextureParams &mp);
 
 #endif // PBRT_MATERIALS_SUBSURFACE_H

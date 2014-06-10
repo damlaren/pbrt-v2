@@ -34,16 +34,6 @@ float SkinMicrofacet::Pdf(const Vector &wo,
   return Microfacet::Pdf(wo, wi);
 }
 
-/*
-float Beckmann::D(const Vector& wh) const {
-  float cthetah = CosTheta(wh);
-  float c2 = cthetah * cthetah;
-  float tthetah = SinTheta(wh) / cthetah;
-  float exponent = tthetah / m;
-  return 1/(m*m * c2) * exp(-exponent*exponent);
-}
-*/
-
 // SkinMaterial Method Definitions
 BSDF *SkinMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
         const DifferentialGeometry &dgShading, MemoryArena &arena) const {

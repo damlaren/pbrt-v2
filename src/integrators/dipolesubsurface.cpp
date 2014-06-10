@@ -305,14 +305,8 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
 	    // modulate SSS contribution by rho_dr
             //L += (INV_PI * Ft) * (Fdt * Mo);
 	    rho_dr = wet->integrate_BRDF(bsdf, ray.d, 10, BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
-	    rho_dr *= wet->oiliness; // DJ2006
 	    L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(1.0f) - rho_dr);
 	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(0.0f));
-
-	    //TODO: rho_dr fraction of the light is directly reflected-- add this
-	        L += UniformSampleAllLights(scene, renderer, arena, p, n,
-        wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
-        bsdfSampleOffsets);
 	    
             PBRT_SUBSURFACE_FINISHED_OCTREE_LOOKUP();
         }
