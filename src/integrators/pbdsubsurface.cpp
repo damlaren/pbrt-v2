@@ -55,13 +55,13 @@ float deterministic_uniform_sample(int i, int N) {
   return xi_i;
 }
 
-// Exponential sampling (TODO: log base 10? e? 2?) from HCJ-PBD 3.1
-Spectrum exponential_ti(int i, int N, Spectrum sigma_prime_t) {
-  assert(sigma_prime_t != 0);
+// Exponential sampling from HCJ-PBD 3.1
+Spectrum exponential_ti(int i, int N, Spectrum sigmap_t) {
+  assert( sigmap_t != 0);
   float xi_i = deterministic_uniform_sample(i, N);
-  return -log(1 - xi_i) * (Spectrum(1.0f) / sigma_prime_t);
+  return -log(1 - xi_i) * (Spectrum(1.0f) / sigmap_t);
 }
-Spectrum exponential_pdf(float ti, Spectrum sigma_prime_t) {
+Spectrum exponential_pdf(Spectrum ti, Spectrum sigma_prime_t) {
   return sigma_prime_t * Exp(-sigma_prime_t * ti);
 }
 
@@ -203,31 +203,49 @@ struct PBDDiffusionReflectance {
     // PBDDiffusionReflectance Public Methods
     PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s,
                          float eta) {
-        A = (1.f + threeC2(eta))/(1.f - twoC1(eta));
+        nSamples = 5; //TODO: Make input variable
         sigmap_t = sigma_a + sigmap_s;
-        D_g = Spectrum(1.f)/(sigmap_t *3.f) + sigma_a/(3*sigmap_t*sigmap_t);
-        sigma_tr = Sqrt(sigma_a/D_g);
         alphap = sigmap_s / sigmap_t;
-        zpos = Spectrum(1.f) / sigmap_t;
-        zneg = -zpos * (1.f + (4.f/3.f) * A);
+        
+        A = (1.f + threeC2(eta))/(1.f - twoC1(eta));
+        Cphi = 0.25 * (1.f - twoC1(eta));
+        Cphi_corrective = (1.f - twoC1(1/eta));
+        C_e = 0.5 * (1.f - threeC2(eta));
+        D_g = (sigma_a + sigmap_t)/(3.f*sigmap_t*sigmap_t);
+        
+        sigma_tr = Sqrt(sigma_a/D_g);
+        
+        zr = Spectrum(1.f) / sigmap_t;
+        zv = zr + 4.f*A*D_g;
+
     }
     Spectrum operator()(float d2) const {
-        Spectrum dpos = Sqrt(Spectrum(d2) + zpos * zpos);
-        Spectrum dneg = Sqrt(Spectrum(d2) + zneg * zneg);
-        Spectrum Rd = (alphap / (4.f * M_PI)) *
-        ((zpos * (dpos * sigma_tr + Spectrum(1.f)) *
-          Exp(-sigma_tr * dpos)) / (dpos * dpos * dpos) -
-         (zneg * (dneg * sigma_tr + Spectrum(1.f)) *
-          Exp(-sigma_tr * dneg)) / (dneg * dneg * dneg));
+        Spectrum Rd(0.f);
+        for (int i = 1; i <= nSamples; i++){
+            Spectrum ti = exponential_ti(i,nSamples,sigmap_t);
+            Spectrum pdf_ti = exponential_pdf(ti,sigmap_t);
+            Spectrum Q = alphap * sigmap_t * Exp(-sigmap_t * ti);
+            
+            Spectrum dr = Sqrt(Spectrum(d2*d2) + zr * zr);
+            Spectrum dv = Sqrt(Spectrum(d2*d2) + zv * zv);
+            
+            Spectrum Rd_phi = (Cphi*alphap*alphap)/(4.f*M_PI*D_g) * (Exp(-sigma_tr * dr)/dr - Exp(-sigma_tr * dv)/dv);
+            Spectrum Rd_E = (C_e*alphap*alphap)/(4.f*M_PI) * (zr*(dr * sigma_tr + Spectrum(1.f))* Exp(-sigma_tr * dr)/(dr*dr*dr) -
+             (zv * (dv * sigma_tr + Spectrum(1.f)) * Exp(-sigma_tr * dv)/ (dv * dv * dv)));
+            
+            Spectrum kappa = Spectrum(1.f) - Exp(-2.f * sigmap_t * (ti + dr));
+            Rd += (Rd_phi + Rd_E)* Q * kappa/pdf_ti;
+        }
+        Rd /= Cphi_corrective;
         return Rd.Clamp();
     }
     
     // DiffusionReflectance Data
-    Spectrum zpos, zneg, sigmap_t, sigma_tr, alphap, D_g;
-    float A;
+    int nSamples;
+    Spectrum zr, zv, sigmap_t, sigma_tr, alphap, D_g;
+    float A, Cphi, Cphi_corrective, C_e;
 
 };
-
 
 
 // PBDSubsurfaceIntegrator Method Definitions
