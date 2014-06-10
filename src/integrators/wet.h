@@ -13,8 +13,8 @@ class Wet {
 
   RNG rng;
 
-  static const float OILINESS = 1.0;   // rho_s, in [0, 1]
-  static const float ROUGHNESS = 0.35; // skin roughness
+  static const float OILINESS;   // rho_s, in [0, 1]
+  static const float ROUGHNESS; // skin roughness
 
   // TODO: floats or Spectrums?
   // DJ2006 eq. 1, except that dot(wi, n) on bottom is left out.
