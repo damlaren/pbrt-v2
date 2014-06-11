@@ -48,8 +48,9 @@ private:
 };
 
 SkinMaterial::SkinMaterial(float C_h, float C_m, float beta, float rho,
-                           Reference<Texture<float> > e, Reference<Texture<float> > bump)
-                : eta(e) , bumpMap(bump)
+                           Reference<Texture<float> > e, Reference<Texture<float> > bump,
+                           Reference<Texture<Spectrum> > kd)
+                : eta(e) , bumpMap(bump), Kd(kd)
 {
     //wavelengths in nm
     float lambdaR = 650.f, lambdaG = 532.f, lambdaB = 473.f;
@@ -83,6 +84,13 @@ BSDF *SkinMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
     else
         dgs = dgShading;
     BSDF *bsdf = BSDF_ALLOC(arena, BSDF)(dgs, dgGeom.nn);
+    
+    Spectrum kd = Kd->Evaluate(dgs).Clamp();
+    if (!kd.IsBlack()){
+        BxDF *diff = BSDF_ALLOC(arena, Lambertian)(kd);
+        bsdf->Add(diff);
+    }
+    
     float e = eta->Evaluate(dgs);
     Fresnel *fresnel = BSDF_ALLOC(arena,FresnelDielectric)(1.,e);
     float rough = 0.35f;
@@ -100,11 +108,13 @@ BSSRDF *SkinMaterial::GetBSSRDF(const DifferentialGeometry &dgGeom,
 
 SkinMaterial *CreateSkinMaterial(const Transform &xform,
         const TextureParams &mp) {
+    float kdDefault[3] = {0.9725,0.764,0.3764};
     Reference<Texture<float> > ior = mp.GetFloatTexture("index", 1.4f);
     float C_h = mp.FindFloat("Ch", 0.001f);
     float C_m = mp.FindFloat("Cm", 0.001f);
     float B = mp.FindFloat("beta", 0.25);
     float rhos = mp.FindFloat("rho", 0.5);
+    Reference<Texture<Spectrum>> Kd = mp.GetSpectrumTexture("Kd", Spectrum::FromRGB(kdDefault));
     Reference<Texture<float> > bumpMap = mp.GetFloatTextureOrNull("bumpmap");
-    return new SkinMaterial(C_h, C_m, B, rhos, ior, bumpMap);
+    return new SkinMaterial(C_h, C_m, B, rhos, ior, bumpMap, Kd);
 }

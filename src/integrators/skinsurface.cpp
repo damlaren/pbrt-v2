@@ -1,38 +1,8 @@
+// integrators/skinsubsurface.cpp*
 
-/*
- pbrt source code Copyright(c) 1998-2012 Matt Pharr and Greg Humphreys.
- 
- This file is part of pbrt.
- 
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions are
- met:
- 
- - Redistributions of source code must retain the above copyright
- notice, this list of conditions and the following disclaimer.
- 
- - Redistributions in binary form must reproduce the above copyright
- notice, this list of conditions and the following disclaimer in the
- documentation and/or other materials provided with the distribution.
- 
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
- IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
- PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
- */
-
-
-// integrators/pbdsubsurface.cpp*
 #include "stdafx.h"
-#include "integrators/pbdsubsurface.h"
+#include "integrators/skinsurface.h"
+#include "integrators/pbdsubsurface.cpp"
 #include "scene.h"
 #include "montecarlo.h"
 #include "sampler.h"
@@ -43,74 +13,19 @@
 #include "octree.h"
 #include "camera.h"
 #include "floatfile.h"
-struct PBDDiffusionReflectance;
 
-// Deterministic random sample
-float deterministic_uniform_sample(int i, int N) {
-  assert(i > 0 && N > 0 && i <= N);
-  float xi_i = (static_cast<float>(i) - 0.5f) / static_cast<float>(N);
-  assert(xi_i >= 0 && xi_i <= 1.0f);
-  return xi_i;
-}
-
-// Exponential sampling
-Spectrum exponential_ti(int i, int N, Spectrum sigmap_t) {
-  assert( sigmap_t != 0);
-  float xi_i = deterministic_uniform_sample(i, N);
-  return (Spectrum(-log(1 - xi_i)) / sigmap_t);
-}
-
-Spectrum exponential_pdf(Spectrum ti, Spectrum sigmap_t) {
-  return (sigmap_t * Exp(-sigmap_t * ti));
-}
-
-inline float twoC1(float eta){
-    if (eta < 1)
-        return (0.919317 -
-                3.4793 * eta +
-                6.75335 * (eta * eta) -
-                7.80989 * (eta * eta * eta) +
-                4.98554 * (eta*eta*eta*eta) -
-                1.36881*(eta*eta*eta*eta*eta));
-    else
-        return (-9.23372 +
-                22.2272 * eta  -
-                29.9292 * eta * eta +
-                10.2291 * (eta*eta*eta) -
-                2.54396 * (eta*eta*eta*eta) +
-                0.254913 * (eta*eta*eta*eta*eta));
-}
-
-inline float threeC2(float eta){
-    if (eta < 1)
-        return (0.828421 -
-                2.62051 * eta +
-                3.36231 * (eta * eta) -
-                1.95284 * (eta * eta * eta) +
-                0.23649 * (eta*eta*eta*eta) -
-                0.145787* (eta*eta*eta*eta*eta));
-    else
-        return (-1641.1 +
-                135.926/(eta*eta*eta) -
-                656.175/(eta*eta) +
-                1376.53/eta +
-                1213.67*eta -
-                568.556 * (eta*eta) +
-                164.798*(eta*eta*eta) -
-                27.0181*(eta*eta*eta*eta) +
-                1.91826*(eta*eta*eta*eta*eta));
-}
+struct SkinDiffusionReflectance;
 
 // DipoleSubsurfaceIntegrator Local Declarations
-struct PBDSubsurfaceOctreeNode {
+struct SkinSubsurfaceOctreeNode {
     // SubsurfaceOctreeNode Methods
-    PBDSubsurfaceOctreeNode() {
+    SkinSubsurfaceOctreeNode() {
         isLeaf = true;
         sumArea = 0.f;
         for (int i = 0; i < 8; ++i)
             ips[i] = NULL;
     }
-    void Insert(const BBox &nodeBound, PBDIrradiancePoint *ip,
+    void Insert(const BBox &nodeBound, SkinIrradiancePoint *ip,
                 MemoryArena &arena) {
         Point pMid = .5f * nodeBound.pMin + .5f * nodeBound.pMax;
         if (isLeaf) {
@@ -121,21 +36,21 @@ struct PBDSubsurfaceOctreeNode {
                     return;
                 }
             }
-            
+
             // Convert leaf node to interior node, redistribute points
             isLeaf = false;
-            PBDIrradiancePoint *localIps[8];
+            SkinIrradiancePoint *localIps[8];
             for (int i = 0; i < 8; ++i) {
                 localIps[i] = ips[i];
                 children[i] = NULL;
             }
             for (int i = 0; i < 8; ++i)  {
-                PBDIrradiancePoint *ip = localIps[i];
+                SkinIrradiancePoint *ip = localIps[i];
                 // Add _IrradiancePoint_ _ip_ to interior octree node
                 int child = (ip->p.x > pMid.x ? 4 : 0) +
-                (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
+                    (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
                 if (!children[child])
-                    children[child] = arena.Alloc<PBDSubsurfaceOctreeNode>();
+                    children[child] = arena.Alloc<SkinSubsurfaceOctreeNode>();
                 BBox childBound = octreeChildBound(child, nodeBound, pMid);
                 children[child]->Insert(childBound, ip, arena);
             }
@@ -143,15 +58,15 @@ struct PBDSubsurfaceOctreeNode {
         }
         // Add _IrradiancePoint_ _ip_ to interior octree node
         int child = (ip->p.x > pMid.x ? 4 : 0) +
-        (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
+            (ip->p.y > pMid.y ? 2 : 0) + (ip->p.z > pMid.z ? 1 : 0);
         if (!children[child])
-            children[child] = arena.Alloc<PBDSubsurfaceOctreeNode>();
+            children[child] = arena.Alloc<SkinSubsurfaceOctreeNode>();
         BBox childBound = octreeChildBound(child, nodeBound, pMid);
         children[child]->Insert(childBound, ip, arena);
     }
     void InitHierarchy() {
         if (isLeaf) {
-            // Init _SubsurfaceOctreeNode_ leaf from _IrradiancePoint_s
+            // Init node leaf from irradiance point
             float sumWt = 0.f;
             uint32_t i;
             for (i = 0; i < 8; ++i) {
@@ -166,7 +81,7 @@ struct PBDSubsurfaceOctreeNode {
             E /= i;
         }
         else {
-            // Init interior _SubsurfaceOctreeNode_
+            // Init interior node
             float sumWt = 0.f;
             uint32_t nChildren = 0;
             for (uint32_t i = 0; i < 8; ++i) {
@@ -183,82 +98,92 @@ struct PBDSubsurfaceOctreeNode {
             E /= nChildren;
         }
     }
-    Spectrum Mo(const BBox &nodeBound, const Point &p, const PBDDiffusionReflectance &Rd,
+    Spectrum Mo(const BBox &nodeBound, const Point &p, const SkinDiffusionReflectance &Rd,
                 float maxError);
-    
+
     // SubsurfaceOctreeNode Public Data
     Point p;
     bool isLeaf;
     Spectrum E;
     float sumArea;
     union {
-        PBDSubsurfaceOctreeNode *children[8];
-        PBDIrradiancePoint *ips[8];
+        SkinSubsurfaceOctreeNode *children[8];
+        SkinIrradiancePoint *ips[8];
     };
 };
 
 
-struct PBDDiffusionReflectance {
-    // PBDDiffusionReflectance Public Methods
-    PBDDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s, float eta, Vector wo ) {
-        sigmap_t = sigma_a + sigmap_s;
-        alphap = sigmap_s / sigmap_t;
-        
-        for (int i = 1; i <= nSamples; i++){
-            ti[i] = exponential_ti(i,nSamples,sigmap_t);
-            pdf_ti[i] = exponential_pdf(ti[i],sigmap_t);
-        }
+struct SkinDiffusionReflectance {
+    // SkinDiffusionReflectance Public Methods
 
-        A = (1.f + threeC2(eta))/(1.f - twoC1(eta));
+    //Takes epidermis scattering values
+    SkinDiffusionReflectance(const Spectrum &sigma_a, const Spectrum &sigmap_s, float eta, float thickness) {
+        int nSamples = 5;
+        
+        A0 = (1.f + threeC2(eta))/(1.f - twoC1(eta));
         Cphi = 0.25 * (1.f - twoC1(eta));
         Cphi_corrective = (1.f - twoC1(1/eta));
         C_e = 0.5 * (1.f - threeC2(eta));
-        D_g = (sigma_a + sigmap_t)/(3.f*sigmap_t*sigmap_t);
         
-        sigma_tr = Sqrt(sigma_a/D_g);
-        zr = Spectrum(1.f) / sigmap_t;
-        zv = zr + 4.f*A*D_g;
+        //Epidermis
+        Ad = (1.f + threeC2(1.f))/(1.f - twoC1(1.f));
+        sigmap_t_epi = sigma_a + sigmap_s;
+        sigma_tr_epi = Sqrt(3.f * sigma_a * sigmap_t_epi);
+        alphap_epi = sigmap_s / sigmap_t_epi;
+        D_epi = (2 * sigma_a + sigmap_t_epi)/(3.f*sigmap_t_epi*sigmap_t_epi);
 
+        //dermis - todo: incorporate into material?
+        Spectrum sigmaps_derm = sigmap_s/2.f;
+        float rgb_derm[3] = { 0.125f, 0.595f, 12.65f };
+        Spectrum sigmaa_derm = Spectrum::FromRGB(rgb_derm);
+        sigmap_t_derm = sigmaa_derm + sigmaps_derm;
+        sigma_tr_derm = Sqrt(3.f * sigmaa_derm * sigmap_t_derm);
+        alphap_derm = sigmaps_derm / sigmap_t_derm;
+        D_derm = (2 * sigma_a + sigmap_t_epi)/(3.f*sigmap_t_epi*sigmap_t_epi);
+
+        Spectrum l0 = Spectrum(1.f)/sigmap_t_epi;
+        Spectrum ld = Spectrum(1.f)/sigmap_t_derm;
+        zb0 = 2.f * A0 * eta * D_epi;
+        zbd = 2.f * Ad * D_derm;
+
+        zr1 = 2.f*(Spectrum(thickness) + 2.f*zb0) + l0;
+        zv1 = 2.f*(Spectrum(thickness) + 2.f*zb0) - l0 - 2.f*zb0;
+        zr2 = 4.f*(Spectrum(thickness) + 2.f*zbd) + ld;
+        zv2 = 4.f*(Spectrum(thickness) + 2.f*zb0) - l0 - 2.f*zbd;
     }
-    Spectrum operator()(float sqd) const {
-        Spectrum Rd(0.f);
-        for (int i = 1; i <= nSamples; i++){
-            
-            Spectrum Q = alphap * sigmap_t * Exp(-sigmap_t * ti[i]);
-            
-            Spectrum dr = Sqrt(Spectrum(sqd) + zr * zr);
-            Spectrum dv = Sqrt(Spectrum(sqd) + zv * zv);
-            
-            Spectrum Rd_phi = (Cphi*alphap*alphap)/(4.f*M_PI*D_g) * (Exp(-sigma_tr * dr)/dr - Exp(-sigma_tr * dv)/dv);
-            Spectrum Rd_E = (C_e*alphap*alphap)/(4.f*M_PI) * (zr*(dr * sigma_tr + Spectrum(1.f))* Exp(-sigma_tr * dr)/(dr*dr*dr) -
-             (zv * (dv * sigma_tr + Spectrum(1.f)) * Exp(-sigma_tr * dv)/ (dv * dv * dv)));
-            
-            Spectrum kappa = Spectrum(1.f);// - Exp(-2.f * sigmap_t * (ti[i] + dr));
-            Rd += (Rd_phi + Rd_E)* Q * kappa/pdf_ti[i];
-        }
-        Rd /= nSamples;
+
+    Spectrum operator()(float d2) const {
+        
+        Spectrum dr1 = Sqrt(Spectrum(d2) + zr1 * zr1);
+        Spectrum dv1= Sqrt(Spectrum(d2) + zv1 * zv1);
+        Spectrum dr2 = Sqrt(Spectrum(d2) + zr2 * zr2);
+        Spectrum dv2= Sqrt(Spectrum(d2) + zv2 * zv2);
+
+        Spectrum Rd;
+
+        Rd /= Cphi_corrective;
         return Rd.Clamp();
     }
-    
-    // DiffusionReflectance Data
-    static const int nSamples = 5; //TODO: MAKE INPUT VAR
-    Spectrum ti[nSamples];
-    Spectrum pdf_ti[nSamples];
-    Spectrum zr, zv, sigmap_t, sigma_tr, alphap, D_g;
-    float A, Cphi, Cphi_corrective, C_e;
 
+    // SkinDiffusionReflectance Data
+    Spectrum sigmap_t_epi, sigma_tr_epi, alphap_epi;
+    Spectrum sigmap_t_derm, sigma_tr_derm, alphap_derm;
+    Spectrum D_epi, D_derm;
+    Spectrum zb0, zbd, zr1, zr2, zv1, zv2;
+    float Ad, A0, Cphi, Cphi_corrective, C_e;
 };
 
 
-// PBDSubsurfaceIntegrator Method Definitions
-PBDSubsurfaceIntegrator::PBDSubsurfaceIntegrator() {
+
+// SkinSubsurfaceIntegrator Method Definitions
+SkinSubsurfaceIntegrator::~SkinSubsurfaceIntegrator() {
     delete[] lightSampleOffsets;
     delete[] bsdfSampleOffsets;
 }
 
 
-void PBDSubsurfaceIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
-                                             const Scene *scene) {
+void SkinSubsurfaceIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
+        const Scene *scene) {
     // Allocate and request samples for sampling all lights
     uint32_t nLights = scene->lights.size();
     lightSampleOffsets = new LightSampleOffsets[nLights];
@@ -272,9 +197,9 @@ void PBDSubsurfaceIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
     }
 }
 
-void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
-                                         const Camera *camera, 
-                                         const Renderer *renderer) {
+
+void SkinSubsurfaceIntegrator::Preprocess(const Scene *scene,
+        const Camera *camera, const Renderer *renderer) {
     if (scene->lights.size() == 0) return;
     vector<SurfacePoint> pts;
     // Get _SurfacePoint_s for translucent objects in scene
@@ -297,7 +222,7 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
         FindPoissonPointDistribution(pCamera, camera->shutterOpen,
                                      minSampleDist, scene, &pts);
     }
-    
+
     // Compute irradiance values at sample points
     RNG rng;
     MemoryArena arena;
@@ -322,7 +247,7 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
                 float lightPdf;
                 VisibilityTester visibility;
                 Spectrum Li = light->Sample_L(sp.p, sp.rayEpsilon,
-                                              ls, camera->shutterOpen, &wi, &lightPdf, &visibility);
+                    ls, camera->shutterOpen, &wi, &lightPdf, &visibility);
                 if (Dot(wi, sp.n) <= 0.) continue;
                 if (Li.IsBlack() || lightPdf == 0.f) continue;
                 Li *= visibility.Transmittance(scene, renderer, NULL, rng, arena);
@@ -331,16 +256,16 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
             }
             E += Elight / nSamples;
         }
-        irradiancePoints.push_back(PBDIrradiancePoint(sp, E));
+        irradiancePoints.push_back(SkinIrradiancePoint(sp, E));
         PBRT_SUBSURFACE_COMPUTED_IRRADIANCE_AT_POINT(&sp, &E);
         arena.FreeAll();
         progress.Update();
     }
     progress.Done();
     PBRT_SUBSURFACE_FINISHED_COMPUTING_IRRADIANCE_VALUES();
-    
+
     // Create octree of clustered irradiance samples
-    octree = octreeArena.Alloc<PBDSubsurfaceOctreeNode>();
+    octree = octreeArena.Alloc<SkinSubsurfaceOctreeNode>();
     for (uint32_t i = 0; i < irradiancePoints.size(); ++i)
         octreeBounds = Union(octreeBounds, irradiancePoints[i].p);
     for (uint32_t i = 0; i < irradiancePoints.size(); ++i)
@@ -349,14 +274,14 @@ void PBDSubsurfaceIntegrator::Preprocess(const Scene *scene,
 }
 
 
-Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *renderer,
-                                     const RayDifferential &ray, const Intersection &isect,
-                                     const Sample *sample, RNG &rng, MemoryArena &arena) const {
+Spectrum SkinSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *renderer,
+        const RayDifferential &ray, const Intersection &isect,
+        const Sample *sample, RNG &rng, MemoryArena &arena) const {
     Spectrum L(0.);
     Vector wo = -ray.d;
     // Compute emitted light if ray hit an area light source
     L += isect.Le(wo);
-    
+
     // Evaluate BSDF at hit point
     BSDF *bsdf = isect.GetBSDF(ray, arena);
     const Point &p = bsdf->dgShading.p;
@@ -370,7 +295,7 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         if (!sigmap_t.IsBlack()) {
             // Use hierarchical integration to evaluate reflection from dipole model
             PBRT_SUBSURFACE_STARTED_OCTREE_LOOKUP(const_cast<Point *>(&p));
-            PBDDiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta(),wo);
+            SkinDiffusionReflectance Rd(sigma_a, sigmap_s, bssrdf->eta(),epidermisT);
             Spectrum Mo = octree->Mo(octreeBounds, p, Rd, maxError);
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
@@ -380,8 +305,8 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
         }
     }
     L += UniformSampleAllLights(scene, renderer, arena, p, n,
-            wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, 
-            lightSampleOffsets, bsdfSampleOffsets);
+        wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
+        bsdfSampleOffsets);
     if (ray.depth < maxSpecularDepth) {
         // Trace rays for specular reflection and refraction
         L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene, sample,
@@ -393,16 +318,16 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
 }
 
 
-Spectrum PBDSubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
-                                     const PBDDiffusionReflectance &Rd, float maxError) {
+Spectrum SkinSubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
+        const SkinDiffusionReflectance &Rd, float maxError) {
     // Compute $M_\roman{o}$ at node if error is low enough
     float dw = sumArea / DistanceSquared(pt, p);
     if (dw < maxError && !nodeBound.Inside(pt))
     {
-        PBRT_SUBSURFACE_ADDED_INTERIOR_CONTRIBUTION(const_cast<PBDSubsurfaceOctreeNode *>(this));
+        PBRT_SUBSURFACE_ADDED_INTERIOR_CONTRIBUTION(const_cast<SubsurfaceOctreeNode *>(this));
         return Rd(DistanceSquared(pt, p)) * E * sumArea;
     }
-    
+
     // Otherwise compute $M_\roman{o}$ from points in leaf or recursively visit children
     Spectrum Mo = 0.f;
     if (isLeaf) {
@@ -425,13 +350,15 @@ Spectrum PBDSubsurfaceOctreeNode::Mo(const BBox &nodeBound, const Point &pt,
     return Mo;
 }
 
-PBDSubsurfaceIntegrator *CreatePBDSubsurfaceIntegrator(const ParamSet &params) {
+
+SkinSubsurfaceIntegrator *CreateSkinSubsurfaceIntegrator(const ParamSet &params) {
+    float epidermis = params.FindOneFloat("epidermis", 0.25f);
     int maxDepth = params.FindOneInt("maxdepth", 5);
     float maxError = params.FindOneFloat("maxerror", .05f);
     float minDist = params.FindOneFloat("minsampledistance", .25f);
     string pointsfile = params.FindOneFilename("pointsfile", "");
     if (PbrtOptions.quickRender) { maxError *= 4.f; minDist *= 4.f; }
-    return new PBDSubsurfaceIntegrator(maxDepth, maxError, minDist, pointsfile);
+    return new SkinSubsurfaceIntegrator(epidermis, maxDepth, maxError, minDist, pointsfile);
 }
 
 
