@@ -16,7 +16,6 @@ Spectrum Wet::integrate_BRDF(BSDF *bsdf, const Vector& wi,
     BxDF* bxdf = bsdf->getComponent(i);
     SkinMicrofacet *smf = dynamic_cast<SkinMicrofacet*>(bxdf);
     if (smf) {
-      Spectrum rho_dr = Spectrum(0.0f);
       for (int i = 0; i < nSamples; i++) {
 	Vector w0;
 	float pdf;
@@ -28,11 +27,15 @@ Spectrum Wet::integrate_BRDF(BSDF *bsdf, const Vector& wi,
 	rho_dr += f;
       }
       rho_dr /= nSamples; //duh!
-
-      rho_dr = smf->oiliness * rho_dr;
+      rho_dr *= smf->oiliness;
   
       // Take final result and clamp to range [0, 1]
       rho_dr = rho_dr.Clamp(0.0f, 1.0f);
+
+      if (!rho_dr.IsBlack()) {
+	//rho_dr.Print(stdout); std::cout << std::endl;
+	//std::cout << rho_dr << std::endl;
+      }
       break;
     }
   }  

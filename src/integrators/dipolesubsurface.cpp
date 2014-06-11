@@ -300,8 +300,6 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
             float Fdt = 1.f - Fdr(bssrdf->eta());
 
-	    //TODO: rho_dr% is directly reflected (specular term)
-	    // And (1 - rho_dr)% is from scattering.
 	    // modulate SSS contribution by rho_dr
             //L += (INV_PI * Ft) * (Fdt * Mo);
 	    rho_dr = wet->integrate_BRDF(bsdf, ray.d, 10, BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
