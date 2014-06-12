@@ -75,7 +75,7 @@ SkinMaterial::SkinMaterial(float C_h, float C_m, float beta, float rho,
 }
         
 
-BSDF *SkinMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
+BSDF *SkinSubsurfaceMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
                 const DifferentialGeometry &dgShading,
                 MemoryArena &arena) const {
      DifferentialGeometry dgs;
@@ -99,14 +99,14 @@ BSDF *SkinMaterial::GetBSDF(const DifferentialGeometry &dgGeom,
     return bsdf;
 }
 
-BSSRDF *SkinMaterial::GetBSSRDF(const DifferentialGeometry &dgGeom,
+BSSRDF *SkinSubsurfaceMaterial::GetBSSRDF(const DifferentialGeometry &dgGeom,
                     const DifferentialGeometry &dgShading,
                     MemoryArena &arena) const {
     float e = eta->Evaluate(dgShading);
     return BSDF_ALLOC(arena, BSSRDF)(episigma_a->Evaluate(dgShading), episigmap_s->Evaluate(dgShading),e);
 }
 
-SkinMaterial *CreateSkinMaterial(const Transform &xform,
+SkinSubsurfaceMaterial *CreateSkinSubsurfaceMaterial(const Transform &xform,
         const TextureParams &mp) {
     float kdDefault[3] = {0.9725,0.764,0.3764};
     Reference<Texture<float> > ior = mp.GetFloatTexture("index", 1.4f);
@@ -116,5 +116,6 @@ SkinMaterial *CreateSkinMaterial(const Transform &xform,
     float rhos = mp.FindFloat("rho", 0.5);
     Reference<Texture<Spectrum>> Kd = mp.GetSpectrumTexture("Kd", Spectrum::FromRGB(kdDefault));
     Reference<Texture<float> > bumpMap = mp.GetFloatTextureOrNull("bumpmap");
+
     return new SkinMaterial(C_h, C_m, B, rhos, ior, bumpMap, Kd);
 }

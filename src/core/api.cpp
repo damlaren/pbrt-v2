@@ -84,6 +84,8 @@
 #include "materials/mirror.h"
 #include "materials/mixmat.h"
 #include "materials/plastic.h"
+#include "materials/skin.h"
+#include "materials/skinsubsurface.h"
 #include "materials/substrate.h"
 #include "materials/subsurface.h"
 #include "materials/shinymetal.h"
@@ -396,8 +398,12 @@ Reference<Material> MakeMaterial(const string &name,
         material = CreateSubstrateMaterial(mtl2world, mp);
     else if (name == "uber")
         material = CreateUberMaterial(mtl2world, mp);
+    else if (name == "skin")
+        material = CreateSkinMaterial(mtl2world, mp);
     else if (name == "subsurface")
         material = CreateSubsurfaceMaterial(mtl2world, mp);
+    else if (name == "skinsubsurface")
+        material = CreateSkinSubsurfaceMaterial(mtl2world, mp);
     else if (name == "kdsubsurface")
         material = CreateKdSubsurfaceMaterial(mtl2world, mp);
     else if (name == "measured")

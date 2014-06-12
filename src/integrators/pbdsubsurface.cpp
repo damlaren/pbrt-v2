@@ -33,6 +33,7 @@
 // integrators/pbdsubsurface.cpp*
 #include "stdafx.h"
 #include "integrators/pbdsubsurface.h"
+#include "integrators/wet.h"
 #include "scene.h"
 #include "montecarlo.h"
 #include "sampler.h"
@@ -375,7 +376,16 @@ Spectrum PBDSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rendere
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
             float Fdt = 1.f - Fdr(bssrdf->eta());
+
+	    // modulate SSS contribution by rho_dr
             L += (INV_PI * Ft) * (Fdt * Mo);
+	    //Wet wet;
+	    //Spectrum rho_dr = wet.integrate_BRDF(bsdf, ray.d, 10,
+						 BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
+	//L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(1.0f) - rho_dr);
+	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(0.0f));
+
+            //L += (INV_PI * Ft) * (Fdt * Mo);
             PBRT_SUBSURFACE_FINISHED_OCTREE_LOOKUP();
         }
     }

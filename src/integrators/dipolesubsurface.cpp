@@ -282,9 +282,12 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
     BSDF *bsdf = isect.GetBSDF(ray, arena);
     const Point &p = bsdf->dgShading.p;
     const Normal &n = bsdf->dgShading.nn;
+
+    Spectrum rho_dr = Spectrum(1.0f);
+
     // Evaluate BSSRDF and possibly compute subsurface scattering
     BSSRDF *bssrdf = isect.GetBSSRDF(ray, arena);
-    if (bssrdf && octree) {
+    if (bssrdf && octree) {	
         Spectrum sigma_a  = bssrdf->sigma_a();
         Spectrum sigmap_s = bssrdf->sigma_prime_s();
         Spectrum sigmap_t = sigmap_s + sigma_a;
@@ -296,19 +299,29 @@ Spectrum DipoleSubsurfaceIntegrator::Li(const Scene *scene, const Renderer *rend
             FresnelDielectric fresnel(1.f, bssrdf->eta());
             Spectrum Ft = Spectrum(1.f) - fresnel.Evaluate(AbsDot(wo, n));
             float Fdt = 1.f - Fdr(bssrdf->eta());
-            L += (INV_PI * Ft) * (Fdt * Mo);
+
+	    // modulate SSS contribution by rho_dr
+            //L += (INV_PI * Ft) * (Fdt * Mo);
+	    rho_dr = wet->integrate_BRDF(bsdf, ray.d, 10, BxDFType(BSDF_REFLECTION | BSDF_GLOSSY));
+	    L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(1.0f) - rho_dr);
+	    //L += (INV_PI * Ft) * (Fdt * Mo) * (Spectrum(0.0f));
+	    
             PBRT_SUBSURFACE_FINISHED_OCTREE_LOOKUP();
         }
     }
+
     L += UniformSampleAllLights(scene, renderer, arena, p, n,
         wo, isect.rayEpsilon, ray.time, bsdf, sample, rng, lightSampleOffsets,
         bsdfSampleOffsets);
+
     if (ray.depth < maxSpecularDepth) {
-        // Trace rays for specular reflection and refraction
-        L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene, sample,
-                             arena);
-        L += SpecularTransmit(ray, bsdf, rng, isect, renderer, scene, sample,
-                              arena);
+        // Trace rays for specular reflection and refraction.
+      // Specular reflection only occurs on oily skin.
+      //TODO: this has no effect?
+        L += SpecularReflect(ray, bsdf, rng, isect, renderer, scene,
+			     sample, arena);
+        L += SpecularTransmit(ray, bsdf, rng, isect,
+			      renderer, scene, sample, arena);
     }
     return L;
 }
